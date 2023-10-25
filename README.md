@@ -1,11 +1,11 @@
-## Adaptive Latent Diffusion Model for 3D Medical Image Translation
+# Paper
 Adaptive Latent Diffusion Model for 3D Medical Image to Image Translation: Multi-modal Magnetic Resonance Imaging Study [Jonghun Kim], [Hyunjin Park]
 Department of Electrical and Computer Engineering Sungkyunkwan University, Suwon, Korea
 WACV, 2024
 
 
 
-## Overview
+# Overview
 
 This repository contains the code for Adaptive Latent Diffusion Model for 3D Medical Image to Image Translation: Multi-modal Magnetic Resonance Imaging Study. The model architecture is illustrated below:
 
@@ -13,7 +13,7 @@ This repository contains the code for Adaptive Latent Diffusion Model for 3D Med
 
 
 
-## Datasets
+# Datasets
 
 We utilized the multi-modal brain tumor segmentation challenge 2021(BraTS 2021) and Information eXtraction From Images (IXI) dataset. Accessible links are provided below.
 
