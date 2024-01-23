@@ -47,38 +47,22 @@ def get_brats_dataset(data_path):
 
 
 class CustomBase(Dataset):
-    def __init__(self, **kwargs):
+    def __init__(self,data_path):
         super().__init__()
-        self.data = get_brats_dataset()
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        return self.data[i]
-
-
-
-class CustomTrain(CustomBase):
-    def __init__(self):
-        data_path = ""
-        self.brats_data = get_brats_dataset(data_path)
-
-    def __len__(self):
-        return len(self.brats_data) 
-
-    def __getitem__(self, i):
-
-        return self.brats_data[i]
-
-
-class CustomTest(CustomBase):
-    def __init__(self):
-        data_path = ""
         self.data = get_brats_dataset(data_path)
 
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, i):
         return self.data[i]
+
+
+class CustomTrain(CustomBase):
+    def __init__(self, data_path, **kwargs):
+        super().__init__(data_path=data_path)
+
+
+class CustomTest(CustomBase):
+    def __init__(self, data_path, **kwargs):
+        super().__init__(data_path=data_path)

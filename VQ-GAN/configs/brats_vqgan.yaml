@@ -31,7 +31,14 @@ data:
     batch_size: 1
     num_workers: 8
     train:
-      target: taming.data.custom.CustomTrain
-
+      target: ldm.data.brats.CustomTrain
+      params:
+        data_path: BraTS2021/TrainingData # to be filled
     validation:
-      target: taming.data.custom.CustomTest
+      target: ldm.data.brats.CustomTest
+      params:
+        data_path: BraTS2021/ValidationData # to be filled
+    test:
+      target: ldm.data.brats.CustomTest
+      params:
+        data_path: BraTS2021/ValidationData # to be filled
