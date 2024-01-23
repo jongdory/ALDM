@@ -1,0 +1,95 @@
+model:
+  base_learning_rate: 1.0e-06
+  target: ldm.models.diffusion.ddpm.LatentDiffusion
+  params:
+    ckpt_path: last.ckpt # to be filled
+    linear_start: 0.0015
+    linear_end: 0.0195
+    num_timesteps_cond: 1
+    log_every_t: 200
+    timesteps: 1000
+    first_stage_key: image
+    cond_stage_key: image
+    image_size: 32
+    channels: 4
+    cond_stage_trainable: false
+    conditioning_key: None #crossattn
+    monitor: val/loss_simple_ema
+    unet_config:
+      target: ldm.modules.diffusionmodules.openaimodel.UNetModel
+      params:
+        image_size: 32
+        in_channels: 6
+        out_channels: 3
+        model_channels: 128
+        attention_resolutions:
+        #note: this isn\t actually the resolution but
+        # the downsampling factor, i.e. this corresnponds to
+        # attention on spatial resolution 8,16,32, as the
+        # spatial reolution of the latents is 32 for f8
+        - 4
+        - 2
+        num_res_blocks: 1
+        channel_mult:
+        - 1
+        - 1
+        - 2
+        num_head_channels: 32
+        use_spatial_transformer: true
+        transformer_depth: 1
+        context_dim: 4
+    first_stage_config:
+      target: ldm.models.vqgan.VQModel
+      params:
+        ckpt_path: last.ckpt # to be filled
+        embed_dim: 3
+        n_embed: 8192
+        ddconfig:
+          double_z: False
+          z_channels: 3
+          resolution: 192
+          in_channels: 1
+          out_ch: 1
+          ch: 128
+          ch_mult:
+          - 1
+          - 1
+          - 2
+          num_res_blocks: 2
+          attn_resolutions: [8]
+          dropout: 0.0
+        lossconfig:
+          target: torch.nn.Identity
+    cond_stage_config: __is_unconditional__
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 1
+    num_workers: 12
+    wrap: false
+    train:
+      target: ldm.data.brats.CustomTrain
+      params:
+        data_path: BraTS2021/TrainingData # to be filled
+    validation:
+      target: ldm.data.brats.CustomTest
+      params:
+        data_path: BraTS2021/ValidationData # to be filled
+    test:
+      target: ldm.data.brats.CustomTest
+      params:
+        data_path: BraTS2021/ValidationData # to be filled
+
+
+lightning:
+  callbacks:
+    image_logger:
+      target: main.ImageLogger
+      params:
+        batch_frequency: 5000
+        max_images: 8
+        increase_log_steps: False
+
+  trainer:
+    benchmark: True
