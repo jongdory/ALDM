@@ -35,16 +35,15 @@ class VQModel(pl.LightningModule):
                                         remap=remap, sane_index_shape=sane_index_shape)
         self.quant_conv = torch.nn.Conv3d(ddconfig["z_channels"], embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv3d(embed_dim, ddconfig["z_channels"], 1)
-        # if ckpt_path is not None:
-        self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
+        self.spade = SPADEGenerator()
+        if ckpt_path is not None:
+            self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
         self.image_key = image_key
         if colorize_nlabels is not None:
             assert type(colorize_nlabels)==int
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
         if monitor is not None:
             self.monitor = monitor
-
-        self.spade = SPADEGenerator()
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]

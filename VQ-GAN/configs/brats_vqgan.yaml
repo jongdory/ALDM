@@ -2,6 +2,7 @@ model:
   base_learning_rate: 4.5e-6
   target: taming.models.vqgan.VQModel
   params:
+    ckpt_path: last.ckpt # to be filled
     embed_dim: 3
     n_embed: 8192
     ddconfig:

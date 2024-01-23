@@ -1,4 +1,4 @@
-name: taming
+name: vqgan
 channels:
   - pytorch
   - defaults
