@@ -3,11 +3,27 @@ Adaptive Latent Diffusion Model for 3D Medical Image to Image Translation: Multi
 Department of Electrical and Computer Engineering Sungkyunkwan University, Suwon, Korea <br>
 WACV 2024 [[paper]](https://openaccess.thecvf.com/content/WACV2024/html/Kim_Adaptive_Latent_Diffusion_Model_for_3D_Medical_Image_to_Image_WACV_2024_paper.html) [[arxiv]](https://arxiv.org/abs/2311.00265)<br>
 
+
+
 # Overview
 
 This repository contains the code for Adaptive Latent Diffusion Model for 3D Medical Image to Image Translation: Multi-modal Magnetic Resonance Imaging Study. The model architecture is illustrated below: 
 
+
+
 ![fig2](./asset/fig2.jpg)
+
+
+
+Our code was written by applying SPADE, VQ-GAN, and LDM into 3D methods. We would like to thank those who have shared their code. Thanks to everyone who contributed code and models.
+
+- [Taming Transformers for High-Resolution Image Synthesis](https://github.com/CompVis/taming-transformers) 
+- [Semantic Image Synthesis with SPADE](https://github.com/NVlabs/SPADE)
+- [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion)
+
+
+
+Our work proceeds in two steps, and each repository contains explanations on the training and inference methods. Please refer to them for more information.
 
 
 
