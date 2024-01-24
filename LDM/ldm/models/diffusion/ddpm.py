@@ -942,6 +942,7 @@ class LatentDiffusion(DDPM):
         loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
 
         logvar_t = self.logvar[t].to(self.device)
+        logvar_t = repeat(logvar_t, 'b -> b c', c=loss_simple.shape[1])
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
         if self.learn_logvar:
@@ -951,6 +952,7 @@ class LatentDiffusion(DDPM):
         loss = self.l_simple_weight * loss.mean()
 
         loss_vlb = self.get_loss(model_output, target, mean=False).mean(dim=(1, 2, 3))
+        lvlb_weights = repeat(self.lvlb_weights[t], 'b -> b c', c=loss_vlb.shape[1])
         loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
         
         loss_dict.update({f'{prefix}/loss_vlb': loss_vlb})
