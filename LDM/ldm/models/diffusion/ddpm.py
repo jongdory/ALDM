@@ -642,8 +642,10 @@ class LatentDiffusion(DDPM):
     def get_input(self, batch, k, return_first_stage_outputs=False, force_c_encode=False,
                   cond_key=None, return_original_cond=False, bs=None):
         modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, 3)]
-        target = modalities[random.randint(0, 3)]
+        source = modalities[random.randint(0, len(modalities))]
+        target = modalities[random.randint(0, len(modalities))]
+        while source == target:
+            target = modalities[random.randint(0, len(modalities))]
             
         x_src = super().get_input(batch, source)
         x_tgt = super().get_input(batch, target)
@@ -654,7 +656,7 @@ class LatentDiffusion(DDPM):
         x_src = x_src.to(self.device)
         x_tgt = x_tgt.to(self.device)
         z_src, _, _ = self.first_stage_model.encode(x_src, target)
-        z_tgt, _, _ = self.first_stage_model.encode(x_tgt, 'skip')
+        z_tgt, _, _ = self.first_stage_model.encode(x_tgt, target)
 
         z_src = self.get_first_stage_encoding(z_src).detach()
         z_tgt = self.get_first_stage_encoding(z_tgt).detach()
@@ -1072,7 +1074,7 @@ class LatentDiffusion(DDPM):
                 intermediates.append(x0_partial)
             if callback: callback(i)
             if img_callback: img_callback(img, i)
-        return img, intermediates
+        return img[:, x_prev.shape[1]:], intermediates
 
     @torch.no_grad()
     def p_sample_loop(self, cond, shape, return_intermediates=False,
@@ -1119,8 +1121,8 @@ class LatentDiffusion(DDPM):
             if img_callback: img_callback(img, i)
 
         if return_intermediates:
-            return img, intermediates
-        return img
+            return img[:, x_prev.shape[1]:], intermediates
+        return img[:, x_prev.shape[1]:]
 
     @torch.no_grad()
     def sample(self, cond, batch_size=16, return_intermediates=False, x_T=None,
