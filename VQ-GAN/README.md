@@ -2,7 +2,7 @@
 
 ## Overview
 
-![VQGAN](/asset/VQGAN.png)
+![VQGAN](/asset/VQGAN.jpg)
 
 We transform the source latent into a target-like latent style through the Multi Switchable SPADE block.
 

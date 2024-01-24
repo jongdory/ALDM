@@ -2,7 +2,7 @@
 
 ## Overview
 
-![VQGAN](/asset/LDM.png)
+![VQGAN](/asset/LDM.jpg)
 
 
 
