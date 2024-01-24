@@ -1,4 +1,4 @@
-# 3D VQ-GAN + MS-SPADE Block
+# VQ-GAN (3D) + MS-SPADE Block
 
 ## Overview
 
@@ -51,7 +51,7 @@ $/data/BraTS2021/TrainingData
 Training can be started by running
 
 ```
-CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/ixi_vqgan.yaml -t True --gpus 0,
+CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan.yaml -t True --gpus 0,
 ```
 
 
