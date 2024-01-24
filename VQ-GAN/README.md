@@ -58,7 +58,7 @@ CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/ixi_vqgan.yaml -t True -
 
 ## Inference
 
-**TBA**
+
 
 
 
