@@ -656,7 +656,7 @@ class LatentDiffusion(DDPM):
         x_src = x_src.to(self.device)
         x_tgt = x_tgt.to(self.device)
         z_src, _, _ = self.first_stage_model.encode(x_src, target)
-        z_tgt, _, _ = self.first_stage_model.encode(x_tgt, target)
+        z_tgt, _, _ = self.first_stage_model.encode(x_tgt, 'skip')
 
         z_src = self.get_first_stage_encoding(z_src).detach()
         z_tgt = self.get_first_stage_encoding(z_tgt).detach()
