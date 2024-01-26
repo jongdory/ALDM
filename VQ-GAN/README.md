@@ -58,19 +58,11 @@ CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan.yaml -t True
 
 ## Inference
 
+```
+python scripts/samples.py -b configs/brats_vqgan.yaml --outdir=/outdir -r vqgan.ckpt
+```
 
 
-
-
-## Training on custom data
-
-
-
-
-
-## Pretrained Model
-
-The pretrained weights on the BraTS dataset can be found at the following link. (**TBA**)
 
 
 

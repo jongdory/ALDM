@@ -64,18 +64,6 @@ python scripts/sample.py  -b configs/latent-diffusion/brats-ldm-vq-4.yaml --ddim
 
 
 
-## Training on custom data
-
-
-
-
-
-## Pretrained Model
-
-**TBA**
-
-
-
 ## Thanks 
 
 Thanks to everyone who contributed code and models.
