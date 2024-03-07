@@ -337,13 +337,11 @@ class DDPM(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss, loss_dict = self.shared_step(batch)
-
-        if self.use_scheduler:
-            lr = self.optimizers().param_groups[0]['lr']
-            self.log('lr_abs', lr, prog_bar=True, logger=True, on_step=True, on_epoch=False)
+        self.log_dict(loss_dict, prog_bar=False,
+                      logger=True, on_step=True, on_epoch=True)
 
         self.log("global_step", self.global_step,
-            prog_bar=True, logger=True, on_step=True, on_epoch=False)
+                 prog_bar=True, logger=True, on_step=True, on_epoch=False)
 
         if self.use_scheduler:
             lr = self.optimizers().param_groups[0]['lr']
@@ -465,8 +463,6 @@ class LatentDiffusion(DDPM):
             self.init_from_ckpt(ckpt_path, ignore_keys)
             self.restarted_from_ckpt = True
 
-        self.shape = (6, 40, 40, 32)
-
     def make_cond_schedule(self, ):
         self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
         ids = torch.round(torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)).long()
@@ -482,7 +478,7 @@ class LatentDiffusion(DDPM):
             print("### USING STD-RESCALING ###")
             x = super().get_input(batch, self.first_stage_key)
             x = x.to(self.device)
-            encoder_posterior, _, _ = self.first_stage_model.encode(x, 'skip') #self.encode_first_stage(x)
+            encoder_posterior, _, _ = self.first_stage_model.encode(x) #self.encode_first_stage(x)
             z = self.get_first_stage_encoding(encoder_posterior).detach()
             del self.scale_factor
             self.register_buffer('scale_factor', 1. / z.flatten().std())
@@ -642,10 +638,10 @@ class LatentDiffusion(DDPM):
     def get_input(self, batch, k, return_first_stage_outputs=False, force_c_encode=False,
                   cond_key=None, return_original_cond=False, bs=None):
         modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, len(modalities))]
-        target = modalities[random.randint(0, len(modalities))]
+        source = modalities[random.randint(0, 3)]
+        target = modalities[random.randint(0, 3)]
         while source == target:
-            target = modalities[random.randint(0, len(modalities))]
+            target = modalities[random.randint(0, 3)]
             
         x_src = super().get_input(batch, source)
         x_tgt = super().get_input(batch, target)
@@ -655,8 +651,9 @@ class LatentDiffusion(DDPM):
             x_tgt = x_tgt[:bs]
         x_src = x_src.to(self.device)
         x_tgt = x_tgt.to(self.device)
-        z_src, _, _ = self.first_stage_model.encode(x_src, target)
-        z_tgt, _, _ = self.first_stage_model.encode(x_tgt, target)
+        z_src, _, _ = self.first_stage_model.encode(x_src) #self.encode_first_stage(x)
+        z_tgtl, _, _ = self.first_stage_model.encode(x_src, target)
+        z_tgt, _, _ = self.first_stage_model.encode(x_tgt)
 
         z_src = self.get_first_stage_encoding(z_src).detach()
         z_tgt = self.get_first_stage_encoding(z_tgt).detach()
@@ -666,7 +663,7 @@ class LatentDiffusion(DDPM):
         c = torch.nn.functional.one_hot(torch.tensor(c), num_classes=4).float()
         c = c.unsqueeze(0).repeat(z_src.shape[0], 1).unsqueeze(1).to(self.device)
         
-        out = [z_src, z_tgt, c]
+        out = [torch.cat([z_src, z_tgtl], dim=1), z_tgt, c]
         if return_first_stage_outputs:
             xrec_src = self.decode_first_stage(z_src)
             xrec_tgt = self.decode_first_stage(z_tgt)
@@ -953,7 +950,7 @@ class LatentDiffusion(DDPM):
 
         loss_vlb = self.get_loss(model_output, target, mean=False).mean(dim=(1, 2, 3))
         lvlb_weights = repeat(self.lvlb_weights[t], 'b -> b c', c=loss_vlb.shape[1])
-        loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
+        loss_vlb = (lvlb_weights * loss_vlb).mean()
         
         loss_dict.update({f'{prefix}/loss_vlb': loss_vlb})
         loss += (self.original_elbo_weight * loss_vlb)
@@ -1110,9 +1107,12 @@ class LatentDiffusion(DDPM):
                 tc = self.cond_ids[ts].to(cond.device)
                 cond = self.q_sample(x_start=cond, t=tc, noise=torch.randn_like(cond))
 
-            img = self.p_sample(img, cond, ts,
+            x_prev = self.p_sample(img, cond, ts,
                                 clip_denoised=self.clip_denoised,
                                 quantize_denoised=quantize_denoised)
+
+            img = torch.cat([x0.to(self.device), x_prev], dim=1)
+            
             if mask is not None:
                 img_orig = self.q_sample(x0, ts)
                 img = img_orig * mask + (1. - mask) * img
@@ -1145,13 +1145,13 @@ class LatentDiffusion(DDPM):
                                   mask=mask, x0=x0)
 
     @torch.no_grad()
-    def sample_log(self,cond,batch_size,ddim, ddim_steps,**kwargs):
+    def sample_log(self,cond,batch_size,ddim, ddim_steps,shape,**kwargs):
 
         if ddim:
             ddim_sampler = DDIMSampler(self)
             shape = self.shape
             samples, intermediates =ddim_sampler.sample(ddim_steps,batch_size,
-                                                        shape, cond,verbose=False,**kwargs)
+                                                        shape,cond,verbose=False,**kwargs)
 
         else:
             samples, intermediates = self.sample(cond=cond, batch_size=batch_size,
@@ -1180,6 +1180,8 @@ class LatentDiffusion(DDPM):
         log[f"recon_{source}"] = xrec_src
         log[f"recon_{target}"] = xrec_tgt
 
+        self.shape = z_src.shape[1:]
+
         if plot_diffusion_rows:
             # get diffusion row
             diffusion_row = list()
@@ -1190,7 +1192,7 @@ class LatentDiffusion(DDPM):
                     t = t.to(self.device).long()
                     noise = torch.randn_like(z_start)
                     z_noisy = self.q_sample(x_start=z_start, t=t, noise=noise)
-                    diffusion_row.append(self.decode_first_stage(z_noisy))
+                    diffusion_row.append(self.decode_first_stage(z_noisy[:,:3]))
 
             diffusion_row = torch.stack(diffusion_row)  # n_log_step, n_row, C, H, W, D
             diffusion_grid = rearrange(diffusion_row, 'n b c h w d-> b n c h w d')

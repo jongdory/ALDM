@@ -2,6 +2,7 @@ model:
   base_learning_rate: 4.5e-6
   target: taming.models.vqgan.VQModel
   params:
+    modalities: ['t1', 't1ce', 't2', 'flair']
     ckpt_path: last.ckpt
     embed_dim: 3
     n_embed: 8192
