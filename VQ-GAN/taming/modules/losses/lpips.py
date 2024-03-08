@@ -15,58 +15,14 @@ class LPIPS(nn.Module):
         self.scaling_layer = ScalingLayer()
         # self.chns = [64, 128, 256, 512, 512]  # vg16 features
         self.net = torch.hub.load("Warvito/MedicalNet-models", model="medicalnet_resnet10_23datasets", verbose=False,)
-        # self.conv1 = nn.Conv3d(1, self.chns[0], kernel_size=(7,7,7), stride=(2,2,2), padding=(3,3,3), bias=False)
-        # self.bn1 = nn.BatchNorm3d(self.chns[0], eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-        # self.relu = nn.ReLU(inplace=True)
-        # self.maxpool = nn.MaxPool3d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
-        # self.lin1 = BasicBlock(self.chns[0],self.chns[1]) #NetLinLayer(self.chns[1], use_dropout=use_dropout)
-        # self.lin2 = BasicBlock(self.chns[1],self.chns[2], downsample=True) #NetLinLayer(self.chns[2], use_dropout=use_dropout)
-        # self.lin3 = BasicBlock(self.chns[2],self.chns[3], downsample=True) #NetLinLayer(self.chns[3], use_dropout=use_dropout)
-        # self.lin4 = BasicBlock(self.chns[3],self.chns[4], downsample=True) #NetLinLayer(self.chns[4], use_dropout=use_dropout)
-        # self.load_from_pretrained()
         for param in self.parameters():
             param.requires_grad = False
-            
-
-    # def load_from_pretrained(self, name="vgg_lpips"):
-    #     # ckpt = get_ckpt_path(name, "taming/modules/autoencoder/lpips")
-    #     # print(torch.load(ckpt, map_location=torch.device("cpu")))
-    #     # print(torch.hub.load("Warvito/MedicalNet-models", 
-    #     #                    model="medicalnet_resnet10_23datasets", 
-    #     #                    verbose=False,).state_dict())
-    #     # self.load_state_dict(torch.load(ckpt, map_location=torch.device("cpu")), strict=False)
-    #     pretrained_dict = torch.hub.load("Warvito/MedicalNet-models", model="medicalnet_resnet10_23datasets", verbose=False).state_dict()
-
-    #     model_dict = self.state_dict()
-
-    #     mapping = {
-    #         "layer1.0": "lin1",
-    #         "layer2.0": "lin2",
-    #         "layer3.0": "lin3",
-    #         "layer4.0": "lin4"
-    #     }
-
-    #     pretrained_dict = {f"{mapping[k] if k in mapping else k}{sub_k}": v 
-    #                for k, v in pretrained_dict.items() 
-    #                for sub_k in model_dict 
-    #                if f"{mapping[k] if k in mapping else k}{sub_k}" in model_dict}
-
-    #     model_dict.update(pretrained_dict)
-
-    #     self.load_state_dict(model_dict)
-        # self.load_state_dict(
-        #     torch.hub.load("Warvito/MedicalNet-models", 
-        #                    model="medicalnet_resnet10_23datasets", 
-        #                    verbose=False,).state_dict())
-        # print("loaded pretrained LPIPS loss from {}".format(ckpt))
 
     @classmethod
     def from_pretrained(cls, name="vgg_lpips"):
         if name != "vgg_lpips":
             raise NotImplementedError
         model = cls()
-        # ckpt = get_ckpt_path(name)
-        # model.load_state_dict(torch.load(ckpt, map_location=torch.device("cpu")), strict=False)
         model.load_state_dict(
             torch.hub.load("Warvito/MedicalNet-models", 
                            model="medicalnet_resnet10_23datasets", 
@@ -76,25 +32,11 @@ class LPIPS(nn.Module):
     def forward(self, input, target):
         in0_input, in1_input = normalize_tensor(input), normalize_tensor(target) #(self.scaling_layer(input), self.scaling_layer(target))
         outs0, outs1 = self.net(in0_input), self.net(in1_input)
-        # feats0, feats1, diffs = {}, {}, {}
-        # lin0 = nn.Sequential(self.conv1, self.bn1, self.relu, self.maxpool)
-        # lins = [lin0, self.lin1, self.lin2, self.lin3, self.lin4]
-        # outs0.append(lin0(in0_input))
-        # outs1.append(lin0(in1_input))
-        # for kk in range(1,len(self.chns)):
-        #     outs0.append(lins[kk](outs0[kk-1]))
-        #     outs1.append(lins[kk](outs1[kk-1]))
-        # for kk in range(len(self.chns)):
-        #     feats0[kk], feats1[kk] = normalize_tensor(outs0[kk]), normalize_tensor(outs1[kk])
-        #     diffs[kk] = (feats0[kk] - feats1[kk]) ** 2
-
-        # res = [spatial_average_3d(lins[kk].model(diffs[kk]), keepdim=True) for kk in range(len(self.chns))]
         feats0, feats1 = normalize_tensor(outs0), normalize_tensor(outs1)
         diffs = (feats0 - feats1) ** 2
         res = spatial_average_3d(diffs, keepdim=True)
         val = res
-        # for l in range(1, len(self.chns)):
-            # val += res[l]
+        
         return val
 
 
