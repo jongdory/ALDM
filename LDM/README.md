@@ -50,8 +50,7 @@ $/data/BraTS2021/TrainingData
 Training can be started by running
 
 ```
-CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/latent-diffusion
-/brats-ldm-vq-4.yaml -t True --gpus 0,
+python main.py -b configs/latent-diffusion/brats-ldm-vq-4.yaml -t True --gpus 0,
 ```
 
 
