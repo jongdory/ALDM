@@ -92,11 +92,11 @@ class SPADEResnetBlock(nn.Module):
         return F.leaky_relu(x, 2e-1)
     
 class SPADEGenerator(nn.Module):
-    def __init__(self, z_dim=3):
+    def __init__(self,modalities, z_dim=3):
         super().__init__()
         nf = 128
-        self.in_spade = SPADEResnetBlock(z_dim, nf)
-        self.out_spade = SPADEResnetBlock(nf, z_dim)
+        self.in_spade = SPADEResnetBlock(modalities, z_dim, nf)
+        self.out_spade = SPADEResnetBlock(modalities, nf, z_dim)
 
 
     def forward(self, x, modality):
