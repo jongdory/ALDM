@@ -458,6 +458,8 @@ class LatentDiffusion(DDPM):
         self.clip_denoised = False
         self.bbox_tokenizer = None  
 
+        self.modalities = first_stage_config.params.modalities
+
         self.restarted_from_ckpt = False
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys)
@@ -478,7 +480,7 @@ class LatentDiffusion(DDPM):
             print("### USING STD-RESCALING ###")
             x = super().get_input(batch, self.first_stage_key)
             x = x.to(self.device)
-            encoder_posterior, _, _ = self.first_stage_model.encode(x) #self.encode_first_stage(x)
+            encoder_posterior, _, _ = self.first_stage_model.encode(x) 
             z = self.get_first_stage_encoding(encoder_posterior).detach()
             del self.scale_factor
             self.register_buffer('scale_factor', 1. / z.flatten().std())
@@ -637,11 +639,10 @@ class LatentDiffusion(DDPM):
     @torch.no_grad()
     def get_input(self, batch, k, return_first_stage_outputs=False, force_c_encode=False,
                   cond_key=None, return_original_cond=False, bs=None):
-        modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, 3)]
-        target = modalities[random.randint(0, 3)]
+        source = random.choice(self.modalities)
+        target = random.choice(self.modalities)
         while source == target:
-            target = modalities[random.randint(0, 3)]
+            target = random.choice(self.modalities)
             
         x_src = super().get_input(batch, source)
         x_tgt = super().get_input(batch, target)
@@ -651,7 +652,7 @@ class LatentDiffusion(DDPM):
             x_tgt = x_tgt[:bs]
         x_src = x_src.to(self.device)
         x_tgt = x_tgt.to(self.device)
-        z_src, _, _ = self.first_stage_model.encode(x_src) #self.encode_first_stage(x)
+        z_src, _, _ = self.first_stage_model.encode(x_src)
         z_tgtl, _, _ = self.first_stage_model.encode(x_src, target)
         z_tgt, _, _ = self.first_stage_model.encode(x_tgt)
 
@@ -659,7 +660,7 @@ class LatentDiffusion(DDPM):
         z_tgt = self.get_first_stage_encoding(z_tgt).detach()
                     
         # class conditional one hot encoding
-        c = modalities.index(target)
+        c = self.modalities.index(target)
         c = torch.nn.functional.one_hot(torch.tensor(c), num_classes=4).float()
         c = c.unsqueeze(0).repeat(z_src.shape[0], 1).unsqueeze(1).to(self.device)
         
@@ -1145,8 +1146,7 @@ class LatentDiffusion(DDPM):
                                   mask=mask, x0=x0)
 
     @torch.no_grad()
-    def sample_log(self,cond,batch_size,ddim, ddim_steps,shape,**kwargs):
-
+    def sample_log(self,cond,batch_size,ddim, ddim_steps,**kwargs):
         if ddim:
             ddim_sampler = DDIMSampler(self)
             shape = self.shape
@@ -1180,8 +1180,6 @@ class LatentDiffusion(DDPM):
         log[f"recon_{source}"] = xrec_src
         log[f"recon_{target}"] = xrec_tgt
 
-        self.shape = z_src.shape[1:]
-
         if plot_diffusion_rows:
             # get diffusion row
             diffusion_row = list()
@@ -1199,6 +1197,7 @@ class LatentDiffusion(DDPM):
             diffusion_grid = rearrange(diffusion_grid, 'b n c h w d -> (b n) c h w d')
             log["diffusion_row"] = diffusion_grid
 
+        self.shape = z_src.shape[1:]
         if sample:
             # get denoise row
             with self.ema_scope("Plotting"):

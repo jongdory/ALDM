@@ -118,7 +118,7 @@ class DDIMSampler(object):
                       unconditional_guidance_scale=1., unconditional_conditioning=None,):
         device = self.model.betas.device
         b = shape[0]
-        img = torch.cat([x0.to(device), torch.randn_like(x0).to(device)], dim=1)
+        img = torch.cat([x0.to(device), torch.randn((x0.shape[0], x0.shape[1]//2, *shape[2:])).to(device)], dim=1)
 
         if timesteps is None:
             timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
@@ -149,7 +149,7 @@ class DDIMSampler(object):
                                       unconditional_guidance_scale=unconditional_guidance_scale,
                                       unconditional_conditioning=unconditional_conditioning)
             x_prev, pred_x0 = outs
-            img = torch.cat([img[:, :pred_x0.shape[1]], x_prev], dim=1)
+            img = torch.cat([x0, x_prev], dim=1)
             if callback: callback(i)
             if img_callback: img_callback(pred_x0, i)
 
@@ -157,7 +157,7 @@ class DDIMSampler(object):
                 intermediates['x_inter'].append(img)
                 intermediates['pred_x0'].append(pred_x0)
 
-        return img[:, x_prev.shape[1]:], intermediates
+        return img[:, -x_prev.shape[1]:], intermediates
 
     @torch.no_grad()
     def p_sample_ddim(self, x, c, t, index, repeat_noise=False, use_original_steps=False, quantize_denoised=False,
@@ -189,7 +189,7 @@ class DDIMSampler(object):
         sqrt_one_minus_at = torch.full((b, 1, 1, 1, 1), sqrt_one_minus_alphas[index],device=device)
 
         # current prediction for x_0
-        pred_x0 = (x[:,e_t.shape[1]:] - sqrt_one_minus_at * e_t) / a_t.sqrt()
+        pred_x0 = (x[:,-e_t.shape[1]:] - sqrt_one_minus_at * e_t) / a_t.sqrt()
         if quantize_denoised:
             pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)
         # direction pointing to x_t

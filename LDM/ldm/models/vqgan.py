@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 from main import instantiate_from_config
 
 from ldm.models.normalization import SPADEResnetBlock, SPADEGenerator
-from ldm.modules.diffusionmodules.model import Encoder, Decoder # need to check
+from ldm.modules.diffusionmodules.model import Encoder, Decoder
 from ldm.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from ldm.modules.vqvae.quantize import GumbelQuantize
 from ldm.modules.vqvae.quantize import EMAVectorQuantizer
@@ -20,6 +20,7 @@ class VQModel(pl.LightningModule):
                  embed_dim,
                  ckpt_path=None,
                  ignore_keys=[],
+                 modalities=[], # list of modalities to use
                  image_key="image",
                  colorize_nlabels=None,
                  monitor=None,
@@ -35,7 +36,8 @@ class VQModel(pl.LightningModule):
                                         remap=remap, sane_index_shape=sane_index_shape)
         self.quant_conv = torch.nn.Conv3d(ddconfig["z_channels"], embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv3d(embed_dim, ddconfig["z_channels"], 1)
-        self.spade = SPADEGenerator()
+        self.modalities = modalities
+        self.spade = SPADEGenerator(modalities)
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
         self.image_key = image_key
@@ -56,12 +58,11 @@ class VQModel(pl.LightningModule):
         self.load_state_dict(sd, strict=False)
         print(f"Restored from {path}")
 
-    def encode(self, x, target):
+    def encode(self, x, target=None):
         h = self.encoder(x)
         h = self.quant_conv(h)
         quant, emb_loss, info = self.quantize(h)
-        if target != 'skip':
-            quant = self.spade(quant,  target)
+        if target is not None: quant = self.spade(quant, target)
         return quant, emb_loss, info
 
     def decode(self, quant):
@@ -76,28 +77,20 @@ class VQModel(pl.LightningModule):
 
     def forward(self, input, target):
         quant, diff, _ = self.encode(input, target)
-        # if target != 'skip':
-            # for spade in self.spade:
-            # quant = self.spade(quant,  target)
         dec = self.decode(quant)
         return dec, diff
 
     def get_input(self, batch, k):
         x = batch[k]
-        # if len(x.shape) == 4:
-        #     x = x[..., None]
-        # x = x.permute(0, 4, 1, 2, 3).to(memory_format=torch.contiguous_format)
+        
         return x.float()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, 3)]
-        target = modalities[random.randint(0, 3)]
-        # while source == target:
-        #     target = modalities[random.randint(0, 3)]
+        source = random.choice(self.modalities)
+        target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
-        # if source == target: target = 'skip'
+        if source == target: target = None
         xrec, qloss = self(x_src, target)
 
         if optimizer_idx == 0:
@@ -118,12 +111,10 @@ class VQModel(pl.LightningModule):
             return discloss
 
     def validation_step(self, batch, batch_idx):
-        modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, 3)]
-        target = modalities[random.randint(0, 3)]
+        source = random.choice(self.modalities)
+        target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
-        # if source == target: target = 'skip'
         xrec, qloss = self(x_src,  target)
         aeloss, log_dict_ae = self.loss(qloss, x_tar, xrec, 0, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
@@ -145,6 +136,7 @@ class VQModel(pl.LightningModule):
                                   list(self.decoder.parameters())+
                                   list(self.quantize.parameters())+
                                   list(self.quant_conv.parameters())+
+                                  list(self.spade.parameters()) +
                                   list(self.post_quant_conv.parameters()),
                                   lr=lr, betas=(0.5, 0.9))
         opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
@@ -156,17 +148,14 @@ class VQModel(pl.LightningModule):
 
     def log_images(self, batch, **kwargs):
         log = dict()
-        modalities = ['t1', 't1ce', 't2', 'flair']
-        source = modalities[random.randint(0, 3)]
-        target = modalities[random.randint(0, 3)]
+        source = random.choice(self.modalities)
+        target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
         x_src = x_src.to(self.device)
         x_tar = x_tar.to(self.device)
-        # if source == target: target = 'skip'
         xrec, _ = self(x_src, target)
         if x_src.shape[1] > 3:
-            # colorize with random projection
             assert xrec.shape[1] > 3
             x_src = self.to_rgb(x_src)
             xrec = self.to_rgb(xrec)
@@ -182,26 +171,6 @@ class VQModel(pl.LightningModule):
         x = F.conv3d(x, weight=self.colorize)
         x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
         return x
-
-class VQModelInterface(VQModel):
-    def __init__(self, embed_dim, *args, **kwargs):
-        super().__init__(embed_dim=embed_dim, *args, **kwargs)
-        self.embed_dim = embed_dim
-
-    def encode(self, x):
-        h = self.encoder(x)
-        h = self.quant_conv(h)
-        return h
-
-    def decode(self, h, force_not_quantize=False):
-        # also go through quantization layer
-        if not force_not_quantize:
-            quant, emb_loss, info = self.quantize(h)
-        else:
-            quant = h
-        quant = self.post_quant_conv(quant)
-        dec = self.decoder(quant)
-        return dec
 
 
 class VQSegmentationModel(VQModel):
@@ -306,7 +275,6 @@ class VQNoDiscModel(VQModel):
         return optimizer
 
 
-    
 class GumbelVQ(VQModel):
     def __init__(self,
                  ddconfig,
