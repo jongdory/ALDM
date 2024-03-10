@@ -94,6 +94,11 @@ class VQModel(pl.LightningModule):
         if source == target: 
             target = None
             skip_pass = 1
+            for p in self.encoder.parameters(): p.requires_grad = True
+            for p in self.decoder.parameters(): p.requires_grad = True
+        else:
+            for p in self.encoder.parameters(): p.requires_grad = False
+            for p in self.decoder.parameters(): p.requires_grad = False
         
         xrec, qloss = self(x_src, target)
 
