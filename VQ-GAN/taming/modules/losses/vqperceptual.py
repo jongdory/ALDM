@@ -74,7 +74,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
         return d_weight
 
     def forward(self, codebook_loss, inputs, reconstructions, optimizer_idx,
-                global_step, last_layer=None, cond=None, split="train"):
+                global_step, last_layer=None, skip_pass=0, cond=None, split="train"):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
         p_loss = torch.tensor([0.0])
 
@@ -95,7 +95,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
             d_weight = torch.tensor(0.0)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = nll_loss + disc_factor * g_loss + self.codebook_weight * codebook_loss.mean()
+            loss = nll_loss + skip_pass * disc_factor * g_loss + self.codebook_weight * codebook_loss.mean()
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/quant_loss".format(split): codebook_loss.detach().mean(),
@@ -118,7 +118,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+            d_loss = skip_pass * disc_factor * self.disc_loss(logits_real, logits_fake)
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                    "{}/logits_real".format(split): logits_real.detach().mean(),
