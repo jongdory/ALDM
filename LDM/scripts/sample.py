@@ -174,8 +174,12 @@ if __name__ == "__main__":
             for batch in tqdm(data, desc="Data"):
                 subject_id = batch["subject_id"]
                 x_src = batch[opt.source].unsqueeze(0).to(device)
-                z_src, _, _ = model.first_stage_model.encode(x_src, opt.target)
+                z_src , _, _ = model.first_stage_model.encode(x_src)
+                z_tgtl, _, _ = model.first_stage_model.encode(x_src, opt.target)
                 z_src = model.get_first_stage_encoding(z_src).detach()
+                z_tgtl = model.get_first_stage_encoding(z_tgtl).detach()
+
+                z_src = torch.cat([z_src, z_tgtl], dim=1)
             
                 x0 = z_src
                 c = modalities.index(opt.target)
