@@ -48,10 +48,11 @@ $/data/BraTS2021/TrainingData
 
 ## Training
 
-Training can be started by running
+In stage 1, train the reconstruction, and in stage 2, we train the SPADE module in the latent space.
 
 ```
-CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan.yaml -t True --gpus 0,
+CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan_stage1.yaml -t True --gpus 0,
+CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan_stage2.yaml -t True --gpus 0,
 ```
 
 
