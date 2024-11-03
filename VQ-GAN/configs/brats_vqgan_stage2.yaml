@@ -3,7 +3,9 @@ model:
   target: taming.models.vqgan.VQModel
   params:
     modalities: ['t1', 't1ce', 't2', 'flair']
-    # ckpt_path: last.ckpt
+    ignore_keys: ["loss.discriminator.main.0.weight"]
+    ckpt_path: stage1.ckpt
+    stage: 2
     embed_dim: 3
     n_embed: 8192
     ddconfig:
@@ -25,7 +27,7 @@ model:
       target: taming.modules.losses.vqperceptual.VQLPIPSWithDiscriminator
       params:
         disc_conditional: False
-        disc_in_channels: 1
+        disc_in_channels: 3
         disc_start: 10000
         disc_weight: 0.8
         codebook_weight: 1.0

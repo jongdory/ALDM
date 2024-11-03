@@ -26,6 +26,7 @@ class VQModel(pl.LightningModule):
                  monitor=None,
                  remap=None,
                  sane_index_shape=False,  # tell vector quantizer to return indices as bhw
+                 stage=1,
                  ):
         super().__init__()
         self.image_key = image_key
@@ -38,6 +39,7 @@ class VQModel(pl.LightningModule):
         self.post_quant_conv = torch.nn.Conv3d(embed_dim, ddconfig["z_channels"], 1)
         self.modalities = modalities
         self.spade = SPADEGenerator(modalities)
+        self.stage = stage
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
         self.image_key = image_key
@@ -91,16 +93,15 @@ class VQModel(pl.LightningModule):
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
         skip_pass = 0
-        if source == target: 
-            target = None
-            skip_pass = 1
-            for p in self.encoder.parameters(): p.requires_grad = True
-            for p in self.decoder.parameters(): p.requires_grad = True
+
+        if self.stage == 1: 
+            xrec, qloss = self(x_src)
         else:
-            for p in self.encoder.parameters(): p.requires_grad = False
-            for p in self.decoder.parameters(): p.requires_grad = False
-        
-        xrec, qloss = self(x_src, target)
+            z_src, qloss, _ = self.encode(x_src)
+            z_tar_rec = self.spade(z_src, target)
+            z_tar, _, _ = self.encode(x_tar)
+            x_tar = z_tar
+            xrec = z_tar_rec
 
         if optimizer_idx == 0:
             # autoencode
@@ -124,7 +125,16 @@ class VQModel(pl.LightningModule):
         target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
-        xrec, qloss = self(x_src,  target)
+        
+        if self.stage == 1: 
+            xrec, qloss = self(x_src)
+        else:
+            z_src, qloss, _ = self.encode(x_src)
+            z_tar_rec = self.spade(z_src, target)
+            z_tar, _, _ = self.encode(x_tar)
+            x_tar = z_tar
+            xrec = z_tar_rec
+
         aeloss, log_dict_ae = self.loss(qloss, x_tar, xrec, 0, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
@@ -141,15 +151,22 @@ class VQModel(pl.LightningModule):
 
     def configure_optimizers(self):
         lr = self.learning_rate
-        opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
-                                  list(self.decoder.parameters())+
-                                  list(self.quantize.parameters())+
-                                  list(self.quant_conv.parameters())+
-                                  list(self.spade.parameters()) +
-                                  list(self.post_quant_conv.parameters()),
-                                  lr=lr, betas=(0.5, 0.9))
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-                                    lr=lr, betas=(0.5, 0.9))
+        if self.stage == 1:
+            for p in self.spade.parameters(): p.requires_grad = False
+            for p in self.encoder.parameters(): p.requires_grad = True
+            for p in self.decoder.parameters(): p.requires_grad = True
+            opt_ae = torch.optim.Adam(list(self.encoder.parameters()) +
+                                  list(self.decoder.parameters()) +
+                                  list(self.quantize.parameters()) +
+                                  list(self.quant_conv.parameters()) +
+                                  list(self.post_quant_conv.parameters()), lr=lr, betas=(0.5, 0.9))
+        else:
+            for p in self.spade.parameters(): p.requires_grad = True
+            for p in self.encoder.parameters(): p.requires_grad = False
+            for p in self.decoder.parameters(): p.requires_grad = False
+            opt_ae = torch.optim.Adam(list(self.spade.parameters()), lr=lr, betas=(0.5, 0.9))
+
+        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(), lr=lr, betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
@@ -163,6 +180,7 @@ class VQModel(pl.LightningModule):
         x_tar = self.get_input(batch, target)
         x_src = x_src.to(self.device)
         x_tar = x_tar.to(self.device)
+        if self.stage == 1: target = None
         xrec, _ = self(x_src, target)
         if x_src.shape[1] > 3:
             assert xrec.shape[1] > 3
