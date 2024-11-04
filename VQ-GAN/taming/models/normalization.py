@@ -102,9 +102,9 @@ class SPADEGenerator(nn.Module):
 
 
     def forward(self, x, modality):
-        x_s = self.conv_in(x) + x_s
-        x = self.in_spade(x, modality)
-        x_s = self.conv_out(x) + x_s
-        x = self.out_spade(x, modality)
+        x_s = self.conv_in(x)
+        x = self.in_spade(x, modality) + x_s
+        x_s = self.conv_out(x)
+        x = self.out_spade(x, modality) + x_s
 
         return x

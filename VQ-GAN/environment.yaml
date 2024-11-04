@@ -16,7 +16,7 @@ dependencies:
     - imageio==2.9.0
     - imageio-ffmpeg==0.4.2
     - pytorch-lightning==1.2
-    - omegaconf==2.0.0
+    - omegaconf==2.0.6
     - test-tube>=0.7.5
     - streamlit>=0.73.1
     - einops==0.3.0
