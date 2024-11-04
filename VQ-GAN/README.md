@@ -48,7 +48,7 @@ $/data/BraTS2021/TrainingData
 
 ## Training
 
-In stage 1, train the reconstruction, and in stage 2, we train the SPADE module in the latent space.
+In stage 1, vqgan train the reconstruction, and in stage 2, vqgan train the SPADE module in the latent space.
 
 ```
 CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan_stage1.yaml -t True --gpus 0,
