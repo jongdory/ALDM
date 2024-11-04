@@ -188,7 +188,10 @@ class VQModel(pl.LightningModule):
             xrec = self.to_rgb(xrec)
         log["source"] = x_src
         log["target"] = x_tar
-        log[f"recon_{source}_to_{target}"] = xrec
+        if self.stage == 1: 
+            log["recon"] = xrec
+        else:
+            log[f"recon_{source}_to_{target}"] = xrec
         return log
 
     def to_rgb(self, x):
