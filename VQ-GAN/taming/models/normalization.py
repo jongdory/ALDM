@@ -66,8 +66,6 @@ class SPADEResnetBlock(nn.Module):
         # define normalization layers
         self.norm_0 = SPADE_Multimodal(modalities, fin, fin, kernel_size=3, norm_type='instance')
         self.norm_1 = SPADE_Multimodal(modalities, fmiddle, fmiddle, kernel_size=3, norm_type='instance')
-        if self.learned_shortcut:
-            self.norm_s = SPADE_Multimodal(modalities, fin, fin, kernel_size=3, norm_type='instance')
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
@@ -83,7 +81,7 @@ class SPADEResnetBlock(nn.Module):
 
     def shortcut(self, x, modality):
         if self.learned_shortcut:
-            x_s = self.conv_s(self.norm_s(x, modality))
+            x_s = self.conv_s(x)
         else:
             x_s = x
         return x_s
