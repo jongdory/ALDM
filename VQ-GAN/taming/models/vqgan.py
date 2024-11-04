@@ -95,7 +95,7 @@ class VQModel(pl.LightningModule):
         skip_pass = 0
 
         if self.stage == 1: 
-            xrec, qloss = self(x_src)
+            xrec, qloss = self(x_tar)
         else:
             z_src, qloss, _ = self.encode(x_src)
             z_tar_rec = self.spade(z_src, target)
@@ -127,7 +127,7 @@ class VQModel(pl.LightningModule):
         x_tar = self.get_input(batch, target)
         
         if self.stage == 1: 
-            xrec, qloss = self(x_src)
+            xrec, qloss = self(x_tar)
         else:
             z_src, qloss, _ = self.encode(x_src)
             z_tar_rec = self.spade(z_src, target)
