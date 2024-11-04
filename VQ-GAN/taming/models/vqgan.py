@@ -1,3 +1,4 @@
+# fmt: off
 import random
 import torch
 import torch.nn as nn
@@ -76,7 +77,7 @@ class VQModel(pl.LightningModule):
         dec = self.decode(quant_b)
         return dec
 
-    def forward(self, input, target):
+    def forward(self, input, target=None):
         quant, diff, _ = self.encode(input)
         if target is not None: quant = self.spade(quant, target)
         dec = self.decode(quant)
@@ -84,17 +85,20 @@ class VQModel(pl.LightningModule):
 
     def get_input(self, batch, k):
         x = batch[k]
-        
+
         return x.float()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         source = random.choice(self.modalities)
-        target = random.choice(self.modalities)
+        if self.stage == 1:
+            target = source
+        else:
+            target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
         skip_pass = 0
 
-        if self.stage == 1: 
+        if self.stage == 1:
             xrec, qloss = self(x_src)
         else:
             z_src, qloss, _ = self.encode(x_src)
@@ -122,11 +126,14 @@ class VQModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         source = random.choice(self.modalities)
-        target = random.choice(self.modalities)
+        if self.stage == 1:
+            target = source
+        else:
+            target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
-        
-        if self.stage == 1: 
+
+        if self.stage == 1:
             xrec, qloss = self(x_src)
         else:
             z_src, qloss, _ = self.encode(x_src)
@@ -141,10 +148,10 @@ class VQModel(pl.LightningModule):
         discloss, log_dict_disc = self.loss(qloss, x_tar, xrec, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
         rec_loss = log_dict_ae["val/rec_loss"]
-        self.log("val/rec_loss", rec_loss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
-        self.log("val/aeloss", aeloss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        # self.log("val/rec_loss", rec_loss,
+        #            prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        # self.log("val/aeloss", aeloss,
+        #            prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
         return self.log_dict
@@ -188,7 +195,7 @@ class VQModel(pl.LightningModule):
             xrec = self.to_rgb(xrec)
         log["source"] = x_src
         log["target"] = x_tar
-        if self.stage == 1: 
+        if self.stage == 1:
             log["recon"] = xrec
         else:
             log[f"recon_{source}_to_{target}"] = xrec
@@ -448,4 +455,4 @@ class EMAVQ(VQModel):
                                   lr=lr, betas=(0.5, 0.9))
         opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
                                     lr=lr, betas=(0.5, 0.9))
-        return [opt_ae, opt_disc], []                                           
+        return [opt_ae, opt_disc], []
