@@ -92,7 +92,7 @@ class VQModel(pl.LightningModule):
         target = random.choice(self.modalities)
         x_src = self.get_input(batch, source)
         x_tar = self.get_input(batch, target)
-        skip_pass = 0
+        skip_pass = 1
 
         if self.stage == 1: 
             xrec, qloss = self(x_tar)
