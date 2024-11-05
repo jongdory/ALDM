@@ -76,7 +76,7 @@ class VQModel(pl.LightningModule):
         dec = self.decode(quant_b)
         return dec
 
-    def forward(self, input, target):
+    def forward(self, input, target=None):
         quant, diff, _ = self.encode(input)
         if target is not None: quant = self.spade(quant, target)
         dec = self.decode(quant)
