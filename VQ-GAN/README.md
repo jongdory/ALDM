@@ -54,8 +54,10 @@ In stage 1, model train the reconstruction.
 
 In stage 2, model train the SPADE module in the latent space.
 
-```
+```shell
+# Stage1 training
 CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan_stage1.yaml -t True --gpus 0,
+# Stage2 training after training the stage1 model
 CUDA_VISIBLE_DEVICES=<GPU_ID> python main.py -b configs/brats_vqgan_stage2.yaml -t True --gpus 0,
 ```
 
