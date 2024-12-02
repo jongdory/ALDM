@@ -15,7 +15,7 @@ class SPADE(nn.Module):
                              % norm_type)
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
-        nhidden = 128
+        nhidden = 64
 
         pw = kernel_size // 2
         self.mlp_shared = nn.Sequential(
@@ -94,7 +94,7 @@ class SPADEResnetBlock(nn.Module):
 class SPADEGenerator(nn.Module):
     def __init__(self,modalities, z_dim=3):
         super().__init__()
-        nf = 128
+        nf = 64
         self.in_spade = SPADEResnetBlock(modalities, z_dim, nf)
         self.out_spade = SPADEResnetBlock(modalities, nf, z_dim)
 
