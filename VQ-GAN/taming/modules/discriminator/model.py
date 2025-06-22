@@ -18,7 +18,7 @@ class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator as in Pix2Pix
         --> see https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/networks.py
     """
-    def __init__(self, input_nc=1, ndf=32, n_layers=3, use_actnorm=False):
+    def __init__(self, input_nc=1, ndf=32, n_layers=3, use_actnorm=False, out_ch=1):
         """Construct a PatchGAN discriminator
         Parameters:
             input_nc (int)  -- the number of channels in input images
@@ -59,7 +59,7 @@ class NLayerDiscriminator(nn.Module):
         ]
 
         sequence += [
-            nn.Conv3d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
+            nn.Conv3d(ndf * nf_mult, out_ch, kernel_size=kw, stride=1, padding=padw)]
         self.main = nn.Sequential(*sequence)
 
     def forward(self, input):

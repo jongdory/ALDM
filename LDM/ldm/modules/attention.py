@@ -82,17 +82,17 @@ class LinearAttention(nn.Module):
         super().__init__()
         self.heads = heads
         hidden_dim = dim_head * heads
-        self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias = False)
-        self.to_out = nn.Conv2d(hidden_dim, dim, 1)
+        self.to_qkv = nn.Conv3d(dim, hidden_dim * 3, 1, bias = False)
+        self.to_out = nn.Conv3d(hidden_dim, dim, 1)
 
     def forward(self, x):
-        b, c, h, w = x.shape
+        b, c, h, w, d = x.shape
         qkv = self.to_qkv(x)
-        q, k, v = rearrange(qkv, 'b (qkv heads c) h w -> qkv b heads c (h w)', heads = self.heads, qkv=3)
+        q, k, v = rearrange(qkv, 'b (qkv heads c) h w d -> qkv b heads c (h w d)', heads = self.heads, qkv=3)
         k = k.softmax(dim=-1)  
         context = torch.einsum('bhdn,bhen->bhde', k, v)
         out = torch.einsum('bhde,bhdn->bhen', context, q)
-        out = rearrange(out, 'b heads c (h w) -> b (heads c) h w', heads=self.heads, h=h, w=w)
+        out = rearrange(out, 'b heads c (h w d) -> b (heads c) h w d', heads=self.heads, h=h, w=w, d=d)
         return self.to_out(out)
 
 
@@ -102,22 +102,22 @@ class SpatialSelfAttention(nn.Module):
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels,
+        self.q = torch.nn.Conv3d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.k = torch.nn.Conv2d(in_channels,
+        self.k = torch.nn.Conv3d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.v = torch.nn.Conv2d(in_channels,
+        self.v = torch.nn.Conv3d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels,
+        self.proj_out = torch.nn.Conv3d(in_channels,
                                         in_channels,
                                         kernel_size=1,
                                         stride=1,
@@ -131,19 +131,19 @@ class SpatialSelfAttention(nn.Module):
         v = self.v(h_)
 
         # compute attention
-        b,c,h,w = q.shape
-        q = rearrange(q, 'b c h w -> b (h w) c')
-        k = rearrange(k, 'b c h w -> b c (h w)')
+        b,c,h,w,d = q.shape
+        q = rearrange(q, 'b c h w d -> b (h w d) c')
+        k = rearrange(k, 'b c h w d -> b c (h w d)')
         w_ = torch.einsum('bij,bjk->bik', q, k)
 
         w_ = w_ * (int(c)**(-0.5))
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
         # attend to values
-        v = rearrange(v, 'b c h w -> b c (h w)')
+        v = rearrange(v, 'b c h w d -> b c (h w d)')
         w_ = rearrange(w_, 'b i j -> b j i')
         h_ = torch.einsum('bij,bjk->bik', v, w_)
-        h_ = rearrange(h_, 'b c (h w) -> b c h w', h=h)
+        h_ = rearrange(h_, 'b c (h w d) -> b c h w d', h=h, w=w, d=d)
         h_ = self.proj_out(h_)
 
         return x+h_

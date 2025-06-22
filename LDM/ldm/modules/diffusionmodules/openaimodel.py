@@ -42,7 +42,7 @@ class AttentionPool3d(nn.Module):
         output_dim: int = None,
     ):
         super().__init__()
-        self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim ** 2 + 1) / embed_dim ** 0.5)
+        self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim ** 3 + 1) / embed_dim ** 0.5)
         self.qkv_proj = conv_nd(1, embed_dim, 3 * embed_dim, 1)
         self.c_proj = conv_nd(1, embed_dim, output_dim or embed_dim, 1)
         self.num_heads = embed_dim // num_heads_channels
@@ -50,9 +50,9 @@ class AttentionPool3d(nn.Module):
 
     def forward(self, x):
         b, c, *_spatial = x.shape
-        x = x.reshape(b, c, -1)  # NC(HW)
-        x = th.cat([x.mean(dim=-1, keepdim=True), x], dim=-1)  # NC(HW+1)
-        x = x + self.positional_embedding[None, :, :].to(x.dtype)  # NC(HW+1)
+        x = x.reshape(b, c, -1)  # NC(HWD)
+        x = th.cat([x.mean(dim=-1, keepdim=True), x], dim=-1)  # NC(HWD+1)
+        x = x + self.positional_embedding[None, :, :].to(x.dtype)  # NC(HWD+1)
         x = self.qkv_proj(x)
         x = self.attention(x)
         x = self.c_proj(x)
@@ -97,7 +97,7 @@ class Upsample(nn.Module):
                  upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1):
+    def __init__(self, channels, use_conv, dims=3, out_channels=None, padding=1):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -140,7 +140,7 @@ class Downsample(nn.Module):
                  downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None,padding=1):
+    def __init__(self, channels, use_conv, dims=3, out_channels=None,padding=1):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -892,7 +892,7 @@ class EncoderUNetModel(nn.Module):
             self.out = nn.Sequential(
                 normalization(ch),
                 nn.SiLU(),
-                nn.AdaptiveAvgPool3d((1, 1)),
+                nn.AdaptiveAvgPool3d((1, 1, 1)),
                 zero_module(conv_nd(dims, ch, out_channels, 1)),
                 nn.Flatten(),
             )

@@ -33,20 +33,19 @@ def vanilla_d_loss(logits_real, logits_fake):
 
 class VQLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, codebook_weight=1.0, pixelloss_weight=1.0,
-                 disc_num_layers=3, disc_in_channels=1, disc_factor=1.0, disc_weight=1.0,
-                 perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
-                 disc_ndf=32, disc_loss="hinge"):
+                 disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
+                 use_actnorm=False, disc_conditional=False,
+                 disc_ndf=32, disc_loss="hinge", num_classes=1):
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
         self.codebook_weight = codebook_weight
         self.pixel_weight = pixelloss_weight
-        # self.perceptual_loss = LPIPS().eval()
-        self.perceptual_weight = perceptual_weight
-
+        self.num_classes = num_classes
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
                                                  use_actnorm=use_actnorm,
-                                                 ndf=disc_ndf
+                                                 ndf=disc_ndf,
+                                                 out_ch=num_classes
                                                  ).apply(weights_init)
         self.discriminator_iter_start = disc_start
         if disc_loss == "hinge":
@@ -74,35 +73,32 @@ class VQLPIPSWithDiscriminator(nn.Module):
         return d_weight
 
     def forward(self, codebook_loss, inputs, reconstructions, optimizer_idx,
-                global_step, last_layer=None, skip_pass=0, cond=None, split="train"):
+                global_step, last_layer=None, label=None, split="train"):
         rec_loss = torch.abs(inputs.contiguous() - reconstructions.contiguous())
-        p_loss = torch.tensor([0.0])
-
         nll_loss = rec_loss
         nll_loss = torch.mean(nll_loss)
 
+        batch_size = inputs.shape[0]
         # now the GAN part
         if optimizer_idx == 0:
             # generator update
-            if cond is None:
-                assert not self.disc_conditional
+            if label is None:
                 logits_fake = self.discriminator(reconstructions.contiguous())
+                g_loss = -torch.mean(logits_fake)
             else:
-                assert self.disc_conditional
-                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=1))
-            g_loss = -torch.mean(logits_fake)
-
-            d_weight = torch.tensor(0.0)
+                # multi-class classification
+                logits_fake = self.discriminator(reconstructions.contiguous())
+                targets = label.clone()
+                logits_reshaped = logits_fake.view(batch_size, self.num_classes, -1).mean(dim=2)
+                g_loss = F.cross_entropy(logits_reshaped, targets)
 
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            loss = nll_loss + skip_pass * disc_factor * g_loss + self.codebook_weight * codebook_loss.mean()
+            loss = nll_loss + disc_factor * g_loss + self.codebook_weight * codebook_loss.mean()
 
             log = {"{}/total_loss".format(split): loss.clone().detach().mean(),
                    "{}/quant_loss".format(split): codebook_loss.detach().mean(),
                    "{}/nll_loss".format(split): nll_loss.detach().mean(),
                    "{}/rec_loss".format(split): rec_loss.detach().mean(),
-                   "{}/p_loss".format(split): p_loss.detach().mean(),
-                   "{}/d_weight".format(split): d_weight.detach(),
                    "{}/disc_factor".format(split): torch.tensor(disc_factor),
                    "{}/g_loss".format(split): g_loss.detach().mean(),
                    }
@@ -110,15 +106,26 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
         if optimizer_idx == 1:
             # second pass for discriminator update
-            if cond is None:
+            if label is None:
                 logits_real = self.discriminator(inputs.contiguous().detach())
                 logits_fake = self.discriminator(reconstructions.contiguous().detach())
-            else:
-                logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=1))
-                logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
 
-            disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            d_loss = skip_pass * disc_factor * self.disc_loss(logits_real, logits_fake)
+                disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
+                d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+            else:
+                logits_real = self.discriminator(inputs.contiguous().detach())
+                logits_real_reshaped = logits_real.view(batch_size, self.num_classes, -1).mean(dim=2)
+                real_targets = label.clone()
+                real_loss = F.cross_entropy(logits_real_reshaped, real_targets)
+                
+                logits_fake = self.discriminator(reconstructions.contiguous().detach())
+                logits_fake_reshaped = logits_fake.view(batch_size, self.num_classes, -1).mean(dim=2)
+                fake_targets = torch.zeros(batch_size, dtype=torch.long, device=inputs.device)  # fake class (0)
+                fake_loss = F.cross_entropy(logits_fake_reshaped, fake_targets)
+                
+                disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
+                d_loss = disc_factor * 0.5 * (real_loss + fake_loss)
+
 
             log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                    "{}/logits_real".format(split): logits_real.detach().mean(),

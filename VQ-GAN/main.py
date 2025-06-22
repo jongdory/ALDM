@@ -244,23 +244,29 @@ class ImageLogger(Callback):
     @rank_zero_only
     def _testtube(self, pl_module, images, batch_idx, split):
         return
-        # for k in images:
-        #     grid = torchvision.utils.make_grid(images[k])
-        #     grid = (grid+1.0)/2.0 # -1,1 -> 0,1; c,h,w
-
-        #     tag = f"{split}/{k}"
-            # pl_module.logger.experiment.add_image(
-            #     tag, grid,
-            #     global_step=pl_module.global_step)
+    
+    @rank_zero_only
+    def _get_affine(self, src_path):
+        M = nib.load(src_path).affine[:3, :3]
+        P = np.zeros_like(M)
+        max_abs_indices = np.argmax(np.abs(M), axis=1)
+        for i, col_idx in enumerate(max_abs_indices):
+            P[i, col_idx] = np.sign(M[i, col_idx])
+        
+        P_inv = np.linalg.inv(P)
+        new_M = M @ P_inv
+        affine = np.eye(4)
+        affine[:3, :3] = new_M
+         
+        return affine
 
     @rank_zero_only
-    def log_local(self, save_dir, split, images,
+    def log_local(self, save_dir, split, images, src_path,
                   global_step, current_epoch, batch_idx):
         root = os.path.join(save_dir, "images", split)
         for k in images:
-            img = images[k].squeeze(0)  # remove batch dimension, now it's (1, 192, 192, 160)
+            img = images[k][0] #.squeeze(0)  # remove batch dimension, now it's (C, H, W, D)
             img = img.permute(1, 2, 3, 0)  # reorder dimensions to be compatible with nibabel
-
             img = img.numpy()
 
             filename = "{}_gs-{:06}_e-{:06}_b-{:06}.nii.gz".format(
@@ -271,7 +277,8 @@ class ImageLogger(Callback):
             path = os.path.join(root, filename)
             os.makedirs(os.path.split(path)[0], exist_ok=True)
 
-            nifti_img = nib.Nifti1Image(img, np.eye(4))  # you might want to replace np.eye(4) with the correct affine matrix
+            affine = self._get_affine(src_path)
+            nifti_img = nib.Nifti1Image(img, affine)
             nib.save(nifti_img, path)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
@@ -287,6 +294,7 @@ class ImageLogger(Callback):
 
             with torch.no_grad():
                 images = pl_module.log_images(batch, split=split, pl_module=pl_module)
+                src_path = batch["path"][0]
 
             for k in images:
                 N = min(images[k].shape[0], self.max_images)
@@ -296,7 +304,7 @@ class ImageLogger(Callback):
                     if self.clamp:
                         images[k] = torch.clamp(images[k], -1., 1.)
 
-            self.log_local(pl_module.logger.save_dir, split, images,
+            self.log_local(pl_module.logger.save_dir, split, images, src_path,
                            pl_module.global_step, pl_module.current_epoch, batch_idx)
 
             logger_log_images = self.logger_log_images.get(logger, lambda *args, **kwargs: None)

@@ -1,51 +1,59 @@
 model:
-  base_learning_rate: 4.5e-6
+  base_learning_rate: 2e-5
   target: taming.models.vqgan.VQModel
   params:
-    modalities: ['t1', 't1ce', 't2', 'flair']
-    ignore_keys: ["loss.discriminator.main.0.weight"]
-    ckpt_path: stage1.ckpt
+    num_classes: 4
+    ckpt_path: stage2.ckpt
     stage: 2
-    embed_dim: 3
+    embed_dim: 4
     n_embed: 8192
     ddconfig:
       double_z: False
-      z_channels: 3
+      z_channels: 4
       resolution: 192
       in_channels: 1
       out_ch: 1
-      ch: 128
+      ch: 64
+      num_groups: 32
       ch_mult:
       - 1
       - 1
       - 2
-      num_res_blocks: 2
-      attn_resolutions: [8]
+      num_res_blocks: 1
+      attn_resolutions: []
       dropout: 0.0
 
     lossconfig:
       target: taming.modules.losses.vqperceptual.VQLPIPSWithDiscriminator
       params:
         disc_conditional: False
-        disc_in_channels: 3
+        disc_in_channels: 4
         disc_start: 0
         disc_weight: 0.8
-        codebook_weight: 1.0
+        disc_factor: 0
+        codebook_weight: 0
+        num_classes: 5 # num_class + fake class
 
 data:
   target: main.DataModuleFromConfig
   params:
-    batch_size: 1
-    num_workers: 8
+    batch_size: 4
+    num_workers: 12
     train:
-      target: taming.data.custom.CustomTrain
+      target: taming.data.brats.BraTS2021Train
       params:
         data_path: BraTS2021/TrainingData # to be filled
+        # csv_path: 
+        phase: train
     validation:
-      target: taming.data.custom.CustomTest
+      target: taming.data.brats.BraTS2021Test
       params:
-        data_path: BraTS2021/ValidationData # to be filled
+        data_path: BraTS2021/TrainingData # to be filled
+        # csv_path: 
+        phase: val
     test:
-      target: taming.data.custom.CustomTest
+      target: taming.data.brats.BraTS2021Test
       params:
-        data_path: BraTS2021/ValidationData # to be filled
+        data_path: BraTS2021/TrainingData # to be filled
+        # csv_path: 
+        phase: test

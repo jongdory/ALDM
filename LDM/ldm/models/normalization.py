@@ -1,4 +1,4 @@
-import re
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -15,8 +15,7 @@ class SPADE(nn.Module):
                              % norm_type)
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
-        nhidden = 128
-
+        nhidden = 64
         pw = kernel_size // 2
         self.mlp_shared = nn.Sequential(
             nn.Conv3d(label_nc, nhidden, kernel_size=kernel_size, padding=pw),
@@ -27,7 +26,6 @@ class SPADE(nn.Module):
 
     def forward(self, x):
         normalized = self.param_free_norm(x)
-
         x = F.interpolate(x, size=x.size()[2:], mode='nearest')
         actv = self.mlp_shared(x)
         gamma = self.mlp_gamma(actv)
@@ -35,23 +33,27 @@ class SPADE(nn.Module):
 
         # apply scale and bias
         out = normalized * (1 + gamma) + beta
-
         return out
     
 class SPADE_Multimodal(nn.Module):
-    def __init__(self, modalities, norm_nc, label_nc, kernel_size, norm_type='instance'):
+    def __init__(self, num_classes, norm_nc, label_nc, kernel_size, norm_type='instance'):
         super().__init__()
-        self.spades = nn.ModuleDict({modality: SPADE(norm_nc, label_nc, kernel_size, norm_type) for modality in modalities})
+        self.spades = nn.ModuleList([SPADE(norm_nc, label_nc, kernel_size, norm_type) for _ in range(num_classes)])
 
-    def forward(self, x, modality):
-        if modality in self.spades:
-            x = self.spades[modality](x)
-        else:
-            raise ValueError('%s is not a recognized modality in SPADE_Multimodal' % modality)
+    def forward(self, x, y):
+        outputs = []
+        for i in range(y.shape[0]):
+            class_idx = y[i].item()
+            if class_idx < len(self.spades):
+                output_i = self.spades[class_idx](x[i:i+1])
+                outputs.append(output_i)
+            else:
+                raise ValueError(f'Class {class_idx} is not a recognized class in SPADE_Multimodal')
+        x = torch.cat(outputs, dim=0)
         return x
     
 class SPADEResnetBlock(nn.Module):
-    def __init__(self, modalities, fin, fout):
+    def __init__(self, num_classes, fin, fout):
         super().__init__()
         # Attributes
         self.learned_shortcut = (fin != fout)
@@ -64,26 +66,19 @@ class SPADEResnetBlock(nn.Module):
             self.conv_s = nn.Conv3d(fin, fout, kernel_size=1, bias=False)
 
         # define normalization layers
-        self.norm_0 = SPADE_Multimodal(modalities, fin, fin, kernel_size=3, norm_type='instance')
-        self.norm_1 = SPADE_Multimodal(modalities, fmiddle, fmiddle, kernel_size=3, norm_type='instance')
-        if self.learned_shortcut:
-            self.norm_s = SPADE_Multimodal(modalities, fin, fin, kernel_size=3, norm_type='instance')
+        self.norm_0 = SPADE_Multimodal(num_classes, fin, fin, kernel_size=3, norm_type='instance')
+        self.norm_1 = SPADE_Multimodal(num_classes, fmiddle, fmiddle, kernel_size=3, norm_type='instance')
 
-    # note the resnet block with SPADE also takes in |seg|,
-    # the semantic segmentation map as input
-    def forward(self, x, modality):
-        x_s = self.shortcut(x, modality)
-
-        dx = self.conv_0(self.actvn(self.norm_0(x, modality)))
-        dx = self.conv_1(self.actvn(self.norm_1(dx, modality)))
-
+    def forward(self, x, y):
+        x_s = self.shortcut(x, y)
+        dx = self.conv_0(self.actvn(self.norm_0(x, y)))
+        dx = self.conv_1(self.actvn(self.norm_1(dx, y)))
         out = x_s + dx
-
         return out
 
-    def shortcut(self, x, modality):
+    def shortcut(self, x, y):
         if self.learned_shortcut:
-            x_s = self.conv_s(self.norm_s(x, modality))
+            x_s = self.conv_s(x)
         else:
             x_s = x
         return x_s
@@ -92,15 +87,16 @@ class SPADEResnetBlock(nn.Module):
         return F.leaky_relu(x, 2e-1)
     
 class SPADEGenerator(nn.Module):
-    def __init__(self,modalities, z_dim=3):
+    def __init__(self,num_classes=5, z_dim=4, nf=128):
         super().__init__()
-        nf = 128
-        self.in_spade = SPADEResnetBlock(modalities, z_dim, nf)
-        self.out_spade = SPADEResnetBlock(modalities, nf, z_dim)
+        self.block = nn.ModuleList([
+            SPADEResnetBlock(num_classes, z_dim, nf),
+            SPADEResnetBlock(num_classes, nf, nf*2),
+            SPADEResnetBlock(num_classes, nf*2, nf),
+            SPADEResnetBlock(num_classes, nf, z_dim),
+        ])
 
-
-    def forward(self, x, modality):
-        x = self.in_spade(x, modality)
-        x = self.out_spade(x, modality)
-
+    def forward(self, x, y):
+        for block in self.block:
+            x = block(x, y)
         return x
