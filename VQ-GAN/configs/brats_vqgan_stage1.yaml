@@ -4,7 +4,7 @@ model:
   params:
     num_classes: 4
     ckpt_path: stage1.ckpt
-    stage: 2
+    stage: 1
     embed_dim: 4
     n_embed: 8192
     ddconfig:
