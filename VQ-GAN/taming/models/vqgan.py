@@ -85,11 +85,13 @@ class VQModel(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx):
         inputs = self.get_input(batch, "source")
         targets = self.get_input(batch, "target")
-        y = batch["target_class"].long()
+        
 
         if self.stage == 1: 
+            y = None
             xrec, qloss = self(inputs)
         else:
+            y = batch["target_class"].long()
             xsrc, qloss, _ = self.encode(inputs)
             xrec = self.spade(xsrc, y)
             inputs, _, _ = self.encode(targets)
@@ -114,11 +116,12 @@ class VQModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs = self.get_input(batch, "source")
         targets = self.get_input(batch, "target")
-        y = batch["target_class"].long()
 
         if self.stage == 1: 
+            y = None
             xrec, qloss = self(inputs)
         else:
+            y = batch["target_class"].long()
             xsrc, qloss, _ = self.encode(inputs)
             xrec = self.spade(xsrc, y)
             inputs, _, _ = self.encode(targets)
