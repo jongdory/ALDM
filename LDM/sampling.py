@@ -108,6 +108,12 @@ def get_parser(**parser_kwargs):
         default=True,
         help="scale base-lr by ngpu * batch_size * n_accumulate",
     )
+    parser.add_argument(
+        "--ddim_steps",
+        type=int,
+        default=200,
+        help="ddim steps",
+    )
     return parser
 
 
@@ -167,7 +173,7 @@ if __name__ == "__main__":
         maybe_mkdir(sub_path)
         sample_list = []
         
-        log = model.log_images(batch, ddim_steps=200) # you can change the ddim_steps ex) 50, 100, 200
+        log = model.log_images(batch, ddim_steps=opt.ddim_steps)
         recon = log["samples_x0_quantized"][0].detach().cpu().numpy()
         sample_list.append(recon)
         save_nii(recon, "pred", sub_path, src_path)
