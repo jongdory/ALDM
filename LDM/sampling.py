@@ -171,9 +171,7 @@ if __name__ == "__main__":
 
         sub_path = os.path.join(root_path, subject)
         maybe_mkdir(sub_path)
-        sample_list = []
         
         log = model.log_images(batch, ddim_steps=opt.ddim_steps)
         recon = log["samples_x0_quantized"][0].detach().cpu().numpy()
-        sample_list.append(recon)
         save_nii(recon, "pred", sub_path, src_path)
