@@ -58,7 +58,7 @@ python main.py -b configs/latent-diffusion/brats-ldm-vq-4.yaml -t True --gpus 0,
 ## Inference
 
 ```
-python scripts/sample.py  -b configs/latent-diffusion/brats-ldm-vq-4.yaml --ddim_eta 1.0
+python sampling.py -b configs/latent-diffusion/brats-ldm-vq-4.yaml --ddim_eta 1.0 --ddim_steps 200
 ```
 
 
